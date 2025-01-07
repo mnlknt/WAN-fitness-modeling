@@ -9,3 +9,5 @@ Each folder contains the following codes:
 - rec_functions.py, where all functions used for the reconstruction are defined
 - bdgm_functions.py, where all fuctions for the reconstruction using the block degree-corrected gravity model are defined
 - reconstruction_(un)directed.py, where network and reconstruction parameters need to be defined and the corresponding functions are called
+
+'input_path' must be a path to a folder containing all files in the (UN)DIR/input folder.
