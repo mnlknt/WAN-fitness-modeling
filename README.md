@@ -11,3 +11,10 @@ Each folder contains the following codes:
 - reconstruction_(un)directed.py, where network and reconstruction parameters need to be defined and the corresponding functions are called
 
 'input_path' must be a path to a folder containing all files in the (UN)DIR/input folder.
+
+Mapping of models names used in codes to model names used in article:
+- dgm : model K
+- nlin-dgm : model S
+- dist-dgm : model D
+- bdgm : model B
+- comb-bdgm : model C
