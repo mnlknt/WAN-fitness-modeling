@@ -42,7 +42,7 @@ if bdgm == 'yes':
         
 
     try:
-        s_regions = pd.read_csv(output_path + 's_regions.csv', index_col = 0)
+        s_regions = pd.read_csv(output_path + 'strengths_regions.csv', index_col = 0)
         G = nx.read_gml(output_path + 'real_graph.gml')
     except FileNotFoundError:
         s_regions, G =  strengths_by_region(el, basins, output_path)      
