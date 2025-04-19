@@ -94,7 +94,8 @@ elif bdgm == 'no':
     
     try:
         nodes = pd.read_csv(output_path + 'nodes.csv', index_col = 0)
-    except FileNotFoundError:    
+    except FileNotFoundError:  
+        G = nx.from_pandas_edgelist(el, source = 'basin_id1', target = 'basin_id2', edge_attr = ["weight"], create_using = nx.Graph)
         nodes = node_prop(G, output_path)
     
     try:
