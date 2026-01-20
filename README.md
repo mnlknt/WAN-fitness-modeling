@@ -1,5 +1,5 @@
 # WAN-fitness-modeling
-Minimal codes for all reconstruction methods used in G. Fischetti, A. Mancini, G. Cimini, A. Vespignani and G. Caldarelli, Fitness modeling of the Worldwide Air Transportation Network for epidemic forecasting (2025).
+Minimal codes for all reconstruction methods used in G. Fischetti, A. Mancini, G. Cimini, J.T. Davis, A. Leung, A. Vespignani and G. Caldarelli, Block-Fitness Modeling of the Global Air Mobility Network (2026).
 
 - UNDIR contains all codes for the reconstruction of the undirected networks of the basins dataset.
 - DIR contains all codes for the reconstruction of the directed networks of the January 2019 dataset.
