@@ -93,7 +93,7 @@ Run the full pipeline with the provided shell script:
 
 | Option | Default | Description |
 |---|---|---|
-| `--hub <city>` | `London` | City name for the epidemic seed (matched against `basin_label`) |
+| `--hub <city>` | `London(UK)` | City name for the epidemic seed (matched against `basin_label`) |
 | `--time <t>` | `80` | Time step at which to snapshot the map |
 | `--data-type <type>` | `basin-WAN` | Data type label used in directory and file names |
 | `--n-sims-real <N>` | `10` | Stochastic realizations per hub on the real network |
@@ -146,11 +146,11 @@ Also writes `METASIMULATIONS/<data_type>/opendata/rec_prevalence_<model>.pkl`.
 ### 5 — Plotting
 
 ```bash
-python plot_metapopulation_simulations.py --model <model> --hub <city> \
+python plot_metapopulation_simulations.py --model <model> [--hub "London(UK)"] \
     [--data_type basin-WAN] [--time 80]
 ```
 
-`--hub` accepts a city name (case-insensitive match on `basin_label` in `basin_info.csv`).  
+`--hub` accepts a city name (case-insensitive match on `basin_label` in `basin_info.csv`); defaults to `London(UK)`.  
 Requires both prevalence caches from steps 3 and 4 to exist.
 
 ---
