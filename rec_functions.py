@@ -7,23 +7,6 @@ import random
 import os, os.path
 import itertools
 
-def node_prop(G, savepath):
-    
-    s = [weg for (node, weg) in G.degree(weight='weight')]
-    k = [val for (node, val) in G.degree()]
-    n = [node for (node, val) in G.degree()]
-    regs = [reg for (node, reg) in G.nodes(data = 'region')]
-    
-    nodes = pd.DataFrame()
-    nodes['node'] = n
-    nodes['k'] = k
-    nodes['s'] = s
-    nodes['region'] = regs
-    
-    nodes.to_csv(savepath + 'nodes.csv')
-    
-    return nodes
-
 
 def haversine(basins, savepath):
     
@@ -60,37 +43,33 @@ def haversine(basins, savepath):
     distances.set_index(['n1', 'n2'], inplace = True)
         
         
-    distances.to_csv(savepath + 'haversine_distances_basins.csv')
+    distances.to_csv(savepath / 'haversine_distances_basins.csv')
     
     return distances
 
 
-# new distance function for computation without loops
 def distance_func(distance):
     
-    peak_dis = 50.024052999999995
-    m = 0.00304593
-    q = -0.013297
-    x0 = -2.92694997e+03
-    a = 7.06102656e-04
-    b = -2.42702855e-03
+    peak_dis = 299.985 #50.024052999999995
+
+    x0 = -4619.153137558492
+    a = 0.00040588583099127653
+    b = -0.003799682699039623
     
     distance = pd.Series(distance)
     
     prob_dist = pd.Series([None] * len(distance))
     
-    prob_dist[distance <= peak_dis] = m * distance[distance <= peak_dis] + q
-    prob_dist[distance > peak_dis] = np.exp((x0 - distance[distance > peak_dis]) * a) - b
-    
+    prob_dist = np.exp((x0 - distance) * a) - b
+
     return prob_dist
 
-# TO FINISH
 def equation_to_solve(z, nodes, alpha, beta, distances):
       
-    prod = list(itertools.product(nodes.node, nodes.node))
+    prod = list(itertools.product(nodes.basin_id, nodes.basin_id))
     equal_indices = [i for i, (a, b) in enumerate(prod) if a == b]  #find indices of all elements where i = j
     
-    str_prod = np.multiply.outer(nodes.s.to_numpy(), nodes.s.to_numpy()).flatten()
+    str_prod = np.multiply.outer(nodes.pax_strength.to_numpy(), nodes.pax_strength.to_numpy()).flatten()
     str_prod = np.delete(str_prod, equal_indices)
     
     if beta == 1:
@@ -104,11 +83,10 @@ def equation_to_solve(z, nodes, alpha, beta, distances):
         
         dist = [1]*len(str_prod)
         
-    d = sum((np.power(str_prod, alpha) * np.power(dist, beta)) / (1 + z * np.power(str_prod, alpha) * np.power(dist, beta)))
+    d = sum((np.power(str_prod, alpha) * np.power(dist, beta)) / (1 + z * np.power(str_prod, alpha) * np.power(dist, beta)))/2
     
     return d
 
-# TO FINISH
 def z_solution(a, L, nodes, alpha, beta, distances):
     eps = 1
     while(eps > 0.000000000000001):
@@ -118,21 +96,18 @@ def z_solution(a, L, nodes, alpha, beta, distances):
         
     return a
 
-# TO FINISH
-def z_computation(basins, nodes, savepath, z0, alpha, beta, model): # model is used to name saved file, can be:
+def z_computation(nodes, savepath, z0, alpha, beta, model, L): # model is used to name saved file
 
     if beta == 1:
         
-        distances = haversine(basins, savepath)
+        distances = haversine(nodes, savepath)
     else:
         
         distances = 1
-        
-    L = sum(nodes.k)
-    
+
     z = z_solution(z0, L, nodes, alpha, beta, distances)
     
-    with open(savepath + 'z_{}.csv'.format(model), 'w') as f_output:
+    with open(savepath / 'z_{}.csv'.format(model), 'w') as f_output:
         f_output.write(str(z))
     
     return z
@@ -152,12 +127,15 @@ def ensembles_generation(N, pair_nodes, savepath, model):
         df = pair_nodes[mask][columns]
         df.reset_index(drop = True, inplace = True)
         
-        os.makedirs(os.path.dirname(savepath + 'Ensembles/{}/'.format(model)), exist_ok = True)
-        df.to_csv(savepath + 'Ensembles/{}/edgelist_{}.csv'.format(model, i))
+        out_dir = savepath / 'Ensembles' / model
+        out_dir.mkdir(parents=True, exist_ok=True)
+        df.to_csv(out_dir / 'edgelist_{}.csv'.format(i))
 
 
 def reconstruction_variables(nodes, z, alpha, beta, savepath, model):
     
+    nodes = nodes.rename(columns = {'basin_id':'node', 'pax_strength':'s'})
+
     pair_nodes = nodes[['node', 's']].merge(nodes[['node', 's']], how='cross', suffixes=('_source', '_target'))
     
     condition = pair_nodes['node_source'] == pair_nodes['node_target']
@@ -173,7 +151,7 @@ def reconstruction_variables(nodes, z, alpha, beta, savepath, model):
     if beta == 1:
         
         try: 
-            distances = pd.read_csv(savepath + 'haversine_distances_basins.csv')
+            distances = pd.read_csv(savepath / 'haversine_distances_basins.csv')
             distances.set_index(['n1', 'n2'], inplace = True)
         except FileNotFoundError:
             distances = haversine(nodes, savepath)
@@ -194,7 +172,7 @@ def reconstruction_variables(nodes, z, alpha, beta, savepath, model):
     
     pair_nodes['ws'] = (pair_nodes.s_source*pair_nodes.s_target)/(w*pair_nodes.ps)
     
-    pair_nodes.to_csv(savepath + 'rec_variables_{}.csv'.format(model))
+    pair_nodes.to_csv(savepath / 'rec_variables_{}.csv'.format(model))
     
     return pair_nodes
 
