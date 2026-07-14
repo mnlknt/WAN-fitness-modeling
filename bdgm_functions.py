@@ -7,84 +7,13 @@ import networkx as nx
 
 from rec_functions import *
 
-# this function assigns a region to each airport and computes the strengths by region, saving them in a csv and returning them as dataframes
-
-def strengths_by_region(el, basins, savepath):
-    
-    G = nx.from_pandas_edgelist(el, source = 'basin_id1', target = 'basin_id2', edge_attr = ["weight"], create_using = nx.Graph)
-    
-    attribute_dict = dict(zip(basins['basin_id'], basins['regions']))
-    nx.set_node_attributes(G, attribute_dict, name = 'region')
-
-    regs = basins.regions.value_counts()
-    
-    s_regions = pd.DataFrame(columns = list(regs.index))
-    
-    for region in regs.index:
-        temp = []
-        
-        for j in range(0, len(basins)):
-            
-            node_j = basins.loc[j]['basin_id']
-            s_region = sum(G.edges[neighbor, node_j]['weight'] for neighbor in G.neighbors(node_j) if G.nodes[neighbor]['region'] == region)
-            reg_j = basins.loc[j]['regions']
-           
-            temp.append(s_region)
-        s_regions['{}'.format(region)] = temp
-        
-    s_regions['node'] = basins['basin_id']
-    
-    s_regions.to_csv(savepath + 'strengths_regions.csv') 
-    nx.write_gml(G, savepath + 'real_graph.gml')
-    
-    return s_regions, G
-
-
-# equations to use to compute z for bcgm
-
-def L_computation(G, basins, savepath):
-        
-     regs = basins.regions.value_counts()
-    
-     ls = pd.DataFrame(0, columns = regs.index, index = regs.index)
-     ws = pd.DataFrame(0, columns = regs.index, index = regs.index)
-    
-     for edge in G.edges:
-        
-        node_i = edge[0]
-        node_j = edge[1]
-        
-        reg_i = G.nodes[node_i]['region']
-        reg_j = G.nodes[node_j]['region']
-        
-        weight = G.edges[node_i, node_j]['weight']
-        
-        if(reg_i != reg_j):
-        
-            ls.loc[reg_i, reg_j] = ls.loc[reg_i, reg_j] + 1
-            ls.loc[reg_j, reg_i] = ls.loc[reg_j, reg_i] + 1
-            
-            ws.loc[reg_i, reg_j] = ws.loc[reg_i, reg_j] + weight
-            ws.loc[reg_j, reg_i] = ws.loc[reg_j, reg_i] + weight
-        
-        else:
-            
-            ls.loc[reg_i, reg_j] = ls.loc[reg_i, reg_j] + 1
-            ws.loc[reg_i, reg_j] = ws.loc[reg_i, reg_j] + weight
-            
-     ls.to_csv(savepath + 'ls_regions.csv')
-     ws.to_csv(savepath + 'ws_regions.csv')
-    
-     return ls, ws
-
-
 def equation_to_solve_bdgm(z, multiplication, alpha, beta, dist, reg_i, reg_j):
     
     if reg_i == reg_j:
         d = sum((np.power(multiplication, alpha) * np.power(dist, beta)) / (1 + z * np.power(multiplication, alpha) * np.power(dist, beta)))/2
     else:   
         d = sum((np.power(multiplication, alpha) * np.power(dist, beta)) / (1 + z * np.power(multiplication, alpha) * np.power(dist, beta)))
-    
+        #print(d)
     return d
 
 
@@ -94,6 +23,7 @@ def z_solution_bdgm(a, L, multiplication, alpha, beta, dist, reg_i, reg_j):
         x = L/equation_to_solve_bdgm(a, multiplication, alpha, beta, dist, reg_i, reg_j)
         eps = x - a
         a = x
+        #print(a)
         
     return a
 
@@ -114,12 +44,18 @@ def z_computation_bdgm(basins, savepath, z0, s_regions, alpha, beta, model, ls):
         print(reg_i, reg_j)
         
         L = ls.loc[reg_i, reg_j]
-        
+        if L == 0:
+            zs.append(0)
+            continue       
+        if L == 1:
+            zs.append(10**20)  
+            continue
+
         snodes_i = basins[basins.regions == reg_i]['basin_id'].reset_index(drop = True)
         snodes_j = basins[basins.regions == reg_j]['basin_id'].reset_index(drop = True)
         
-        sin_sector = s_regions['{}'.format(reg_i)][s_regions.node.isin(snodes_j)]
-        sout_sector = s_regions['{}'.format(reg_j)][s_regions.node.isin(snodes_i)]
+        sin_sector = s_regions['{}'.format(reg_i)][s_regions.basin_id.isin(snodes_j)]
+        sout_sector = s_regions['{}'.format(reg_j)][s_regions.basin_id.isin(snodes_i)]
         
         if(reg_i != reg_j):
     
@@ -134,7 +70,7 @@ def z_computation_bdgm(basins, savepath, z0, s_regions, alpha, beta, model, ls):
         if beta == 1:
 
             try: 
-                distances = pd.read_csv(savepath + 'haversine_distances_basins.csv')
+                distances = pd.read_csv(savepath / 'haversine_distances_basins.csv', dtype = {'n1':'int', 'n2':'int'})
                 distances.set_index(['n1', 'n2'], inplace = True)
             except FileNotFoundError:
                 distances = haversine(basins, savepath)
@@ -149,18 +85,25 @@ def z_computation_bdgm(basins, savepath, z0, s_regions, alpha, beta, model, ls):
            
             dist = [1]*len(multiplication)
         
+        #added this check to deal with situations for which there is no solution
+        mu = pd.Series(multiplication)
+        if len(mu[mu!=0]) < L:
+            L = len(mu[mu!=0])-1
+    
         z = z_solution_bdgm(z0, L, multiplication, alpha, beta, dist, reg_i, reg_j)
         zs.append(z)
     
     dr['zs'] = zs
 
-    dr.to_csv(savepath + 'z_{}.csv'.format(model))    
+    dr.to_csv(savepath / 'z_{}.csv'.format(model))    
     
     return dr
         
 
 def reconstruction_variables_bdgm(nodes, s_regions, dz, alpha, beta, ws, savepath, model):
     
+    nodes = nodes.rename(columns = {'basin_id':'node', 'regions':'region'})
+
     pair_nodes = nodes[['node', 'region']].merge(nodes[['node', 'region']], how='cross', suffixes=('_source', '_target'))
     
     condition = pair_nodes['node_source'] == pair_nodes['node_target']
@@ -171,7 +114,7 @@ def reconstruction_variables_bdgm(nodes, s_regions, dz, alpha, beta, ws, savepat
     pair_nodes = pair_nodes.loc[pd.DataFrame(np.sort(pair_nodes[['node_source','node_target']], axis=1), index = pair_nodes.index).drop_duplicates().index]
     pair_nodes.reset_index(drop = True, inplace = True)
     
-    s_regions.set_index('node', inplace = True)
+    s_regions.set_index('basin_id', inplace = True)
 
     s_reg1 = []
     for reg, t in zip(pair_nodes.region_source, pair_nodes.node_target):
@@ -196,14 +139,14 @@ def reconstruction_variables_bdgm(nodes, s_regions, dz, alpha, beta, ws, savepat
     wtot = ws.stack()
     wtot = pd.DataFrame(wtot)
     wtot.reset_index(inplace = True)
-    wtot.rename(columns = {'level_0':'region_source', 'level_1':'region_target', 0:'Ws_tot'}, inplace = True)
+    wtot.rename(columns = {'regions':'region_source', 'level_1':'region_target', 0:'Ws_tot'}, inplace = True)
         
     pair_nodes = pair_nodes.merge(wtot, on = ['region_source', 'region_target'], how  = 'left')
     
     if beta == 1:
         
         try: 
-            distances = pd.read_csv(savepath + 'haversine_distances_basins.csv')
+            distances = pd.read_csv(savepath / 'haversine_distances_basins.csv')
             distances.set_index(['n1', 'n2'], inplace = True)
         except FileNotFoundError:
             distances = haversine(nodes, savepath)
@@ -227,6 +170,8 @@ def reconstruction_variables_bdgm(nodes, s_regions, dz, alpha, beta, ws, savepat
     mask = pair_nodes.region_source == pair_nodes.region_target
     pair_nodes.loc[mask,'ws'] = pair_nodes.loc[mask,'ws']/2
     
-    pair_nodes.to_csv(savepath + 'rec_variables_{}.csv'.format(model))
+    pair_nodes.to_csv(savepath / 'rec_variables_{}.csv'.format(model))
     
     return pair_nodes
+
+
